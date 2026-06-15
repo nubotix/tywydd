@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brynsiencyn Weather</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1419;
+    --surface:   #1a2230;
+    --border:    #2a3a50;
+    --muted:     #4a6080;
+    --text:      #c8d8e8;
+    --bright:    #e8f4ff;
+    --rain-low:  #2a6496;
+    --rain-mid:  #1a8fcf;
+    --rain-high: #00c3ff;
+    --wind-low:  #2a7a4a;
+    --wind-mid:  #f0a500;
+    --wind-high: #e84040;
+    --now:       #f0a500;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  header {
+    padding: 16px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .location {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    color: var(--bright);
+    text-transform: uppercase;
+  }
+
+  .coords {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.67rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+
+  .updated {
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .day-nav {
+    display: flex;
+    padding: 0 4px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .day-tab {
+    padding: 9px 13px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+
+  .day-tab:hover { color: var(--text); }
+  .day-tab.active { color: var(--now); border-bottom-color: var(--now); }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.65rem;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .legend-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* Grid: time | rain-bar | rain-val | wind-bar | wind-val | dir | temp */
+  .forecast-grid {
+    padding: 6px 12px 32px;
+    overflow-x: auto;
+  }
+
+  .section-header {
+    display: grid;
+    grid-template-columns: 46px 1fr 38px 1fr 42px 34px 38px;
+    gap: 4px;
+    padding: 12px 0 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+    min-width: 360px;
+  }
+
+  .col-head { text-align: center; }
+
+  .hour-row {
+    display: grid;
+    grid-template-columns: 46px 1fr 38px 1fr 42px 34px 38px;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 0;
+    border-bottom: 1px solid #1e2d3d;
+    min-width: 360px;
+  }
+
+  .hour-row.is-now {
+    background: rgba(240,165,0,0.07);
+    border-radius: 3px;
+  }
+
+  .hour-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-align: right;
+    padding-right: 4px;
+  }
+
+  .bar-track {
+    height: 13px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .val-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    text-align: center;
+  }
+
+  .rain-val { color: #00c3ff; }
+  .wind-val { color: var(--text); }
+
+  .dir-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: #a0b8d0;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    gap: 1px;
+  }
+
+  .dir-arrow {
+    font-size: 0.85rem;
+    display: inline-block;
+  }
+
+  .dir-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .temp-cell {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-align: center;
+    font-weight: 600;
+  }
+
+  .summary-bar {
+    display: flex;
+    gap: 18px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .summary-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    color: var(--muted);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .summary-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--bright);
+  }
+
+  .loading {
+    text-align: center;
+    padding: 60px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+    font-size: 0.82rem;
+    letter-spacing: 0.1em;
+  }
+
+  .error {
+    text-align: center;
+    padding: 40px 16px;
+    color: #e84040;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="location">Brynsiencyn · Ynys Môn</div>
+    <div class="coords">53.1667°N &nbsp; 4.3167°W</div>
+  </div>
+  <div class="updated" id="updated-time">—</div>
+</header>
+
+<div class="summary-bar" id="summary-bar">
+  <div class="loading">Loading forecast…</div>
+</div>
+
+<nav class="day-nav" id="day-nav"></nav>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-dot" style="background:#2a6496"></span>Light rain</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#1a8fcf"></span>Moderate</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#00c3ff"></span>Heavy</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#2a7a4a"></span>&lt;15 mph</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#f0a500"></span>15–30 mph</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#e84040"></span>&gt;30 mph</div>
+</div>
+
+<div class="forecast-grid" id="forecast-grid"></div>
+
+<script>
+const LAT = 53.1667;
+const LON = -4.3167;
+const KMH_TO_MPH = 0.621371;
+
+let selectedDay = 0;
+let allDays = [];
+
+function rainColor(mm) {
+  if (mm <= 0) return 'transparent';
+  if (mm < 1)  return '#2a6496';
+  if (mm < 4)  return '#1a8fcf';
+  return '#00c3ff';
+}
+
+function windColor(mph) {
+  if (mph < 15) return '#2a7a4a';
+  if (mph < 30) return '#f0a500';
+  return '#e84040';
+}
+
+function tempColor(c) {
+  if (c <= 0)  return '#7ecfff';
+  if (c <= 8)  return '#a0c8e8';
+  if (c <= 15) return '#c8d8e8';
+  if (c <= 20) return '#f0d080';
+  return '#f08040';
+}
+
+function degToCompass(deg) {
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+// Wind direction: meteorological = wind FROM that direction
+// Arrow should point the way wind is GOING (opposite of FROM)
+function degToArrow(deg) {
+  // Add 180 so arrow shows direction wind travels toward
+  const d = (deg + 180) % 360;
+  const arrows = ['↑','↗','→','↘','↓','↙','←','↖'];
+  return arrows[Math.round(d / 45) % 8];
+}
+
+function groupByDay(times, rain, windspeed, winddir, temp) {
+  const days = {};
+  times.forEach((t, i) => {
+    const d = new Date(t);
+    const key = d.toISOString().slice(0, 10);
+    if (!days[key]) days[key] = { date: d, hours: [] };
+    days[key].hours.push({
+      time: d,
+      rain:    rain[i],
+      wind:    windspeed[i] * KMH_TO_MPH,
+      winddir: winddir[i],
+      temp:    temp[i]
+    });
+  });
+  return Object.values(days);
+}
+
+function formatDayTab(date) {
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const dn = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if (isToday) return `Today ${date.getDate()} ${mn[date.getMonth()]}`;
+  return `${dn[date.getDay()]} ${date.getDate()} ${mn[date.getMonth()]}`;
+}
+
+function renderSummary(dayData) {
+  const maxRain  = Math.max(...dayData.hours.map(h => h.rain));
+  const maxWind  = Math.max(...dayData.hours.map(h => h.wind));
+  const totalRain = dayData.hours.reduce((s, h) => s + h.rain, 0);
+  const minTemp  = Math.min(...dayData.hours.map(h => h.temp));
+  const maxTemp  = Math.max(...dayData.hours.map(h => h.temp));
+
+  document.getElementById('summary-bar').innerHTML = `
+    <div class="summary-item">
+      <span class="summary-label">Total rain</span>
+      <span class="summary-value">${totalRain.toFixed(1)} mm</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Peak rain</span>
+      <span class="summary-value">${maxRain.toFixed(1)} mm/hr</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Peak wind</span>
+      <span class="summary-value">${Math.round(maxWind)} mph</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Temp range</span>
+      <span class="summary-value">${Math.round(minTemp)}–${Math.round(maxTemp)}°C</span>
+    </div>
+  `;
+}
+
+function renderGrid(dayData) {
+  const now = new Date();
+  let html = `
+    <div class="section-header">
+      <div class="col-head">Hour</div>
+      <div class="col-head">Rain mm/hr</div>
+      <div class="col-head"></div>
+      <div class="col-head">Wind mph</div>
+      <div class="col-head"></div>
+      <div class="col-head">Dir</div>
+      <div class="col-head">°C</div>
+    </div>
+  `;
+
+  dayData.hours.forEach(h => {
+    const hourStr = h.time.getHours().toString().padStart(2, '0') + ':00';
+    const isNow   = h.time.getHours() === now.getHours() &&
+                    h.time.toDateString() === now.toDateString();
+
+    const rainDisplay = h.rain > 0 ? h.rain.toFixed(1) : '—';
+    const compass = degToCompass(h.winddir);
+    const arrow   = degToArrow(h.winddir);
+
+    html += `
+      <div class="hour-row${isNow ? ' is-now' : ''}">
+        <div class="hour-label">${isNow
+          ? '<span style="color:var(--now);font-size:0.65rem;letter-spacing:0.04em">NOW</span>'
+          : hourStr}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${Math.min(100,(h.rain/10)*100)}%;background:${rainColor(h.rain)}"></div>
+        </div>
+        <div class="val-label rain-val">${rainDisplay}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${Math.min(100,(h.wind/60)*100)}%;background:${windColor(h.wind)}"></div>
+        </div>
+        <div class="val-label wind-val">${Math.round(h.wind)}</div>
+        <div class="dir-cell">
+          <span class="dir-arrow" style="color:${windColor(h.wind)}">${arrow}</span>
+          <span class="dir-label">${compass}</span>
+        </div>
+        <div class="temp-cell" style="color:${tempColor(h.temp)}">${Math.round(h.temp)}</div>
+      </div>
+    `;
+  });
+
+  document.getElementById('forecast-grid').innerHTML = html;
+  renderSummary(dayData);
+}
+
+function renderDayNav(days) {
+  const nav = document.getElementById('day-nav');
+  nav.innerHTML = days.map((d, i) => `
+    <button class="day-tab${i === selectedDay ? ' active' : ''}" data-index="${i}">
+      ${formatDayTab(d.date)}
+    </button>
+  `).join('');
+
+  nav.querySelectorAll('.day-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedDay = parseInt(btn.dataset.index);
+      nav.querySelectorAll('.day-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderGrid(allDays[selectedDay]);
+    });
+  });
+}
+
+async function fetchForecast() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}`
+    + `&hourly=precipitation,windspeed_10m,winddirection_10m,temperature_2m`
+    + `&timezone=Europe%2FLondon&forecast_days=7`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    allDays = groupByDay(
+      data.hourly.time,
+      data.hourly.precipitation,
+      data.hourly.windspeed_10m,
+      data.hourly.winddirection_10m,
+      data.hourly.temperature_2m
+    );
+
+    const now = new Date();
+    const todayIndex = allDays.findIndex(d => d.date.toDateString() === now.toDateString());
+    selectedDay = todayIndex >= 0 ? todayIndex : 0;
+
+    document.getElementById('updated-time').textContent =
+      'Updated ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+    renderDayNav(allDays);
+    renderGrid(allDays[selectedDay]);
+
+  } catch (err) {
+    document.getElementById('forecast-grid').innerHTML =
+      `<div class="error">Failed to load forecast.<br>${err.message}</div>`;
+    document.getElementById('summary-bar').innerHTML = '';
+  }
+}
+
+fetchForecast();
+</script>
+</body>
+</html>
